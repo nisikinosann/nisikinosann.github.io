@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>インテリジェント・シフト・プランナー</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --accent-color: #51cf66;
+            --danger-color: #ff6b6b;
+            --light-gray: #f8f9fa;
+            --dark-gray: #343a40;
+            --border-color: #e2e8f0;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Noto Sans JP', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; min-height: 100vh; padding: 20px; color: var(--dark-gray); }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); color: white; padding: 40px; text-align: center; }
+        .header h1 { font-size: 2.8em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        
+        #mode-selection-screen { padding: 60px 40px; text-align: center; transition: opacity 0.5s ease; }
+        #mode-selection-screen h2 { font-size: 2em; margin-bottom: 20px; }
+        #mode-selection-screen p { font-size: 1.1em; margin-bottom: 40px; color: #666; }
+        .mode-buttons { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; }
+        .mode-btn { background: white; border: 2px solid var(--border-color); border-radius: 15px; padding: 30px; width: 300px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .mode-btn:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.1); border-color: var(--primary-color); }
+        .mode-btn h3 { font-size: 1.8em; color: var(--primary-color); margin-bottom: 10px; }
+        .mode-btn .subtext { font-size: 1em; color: #555; font-weight: bold; }
+        
+        .main-content { padding: 40px; }
+        .section { margin-bottom: 30px; padding: 25px; border-radius: 15px; background: var(--light-gray); border-left: 5px solid var(--primary-color); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .section-title { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .section-title h2 { color: #333; font-size: 1.4em; }
+        
+        textarea.bulk-input-area { width: 100%; height: 120px; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 16px; margin-bottom: 10px; }
+        textarea.bulk-input-area:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
+        .parse-btn { background: var(--primary-color); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: background 0.3s ease; }
+        .parse-btn:hover { background: var(--secondary-color); }
+        
+        .hidden { display: none !important; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; }
+        input[type="text"], input[type="number"], input[type="date"] { width: 100%; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 16px; }
+        input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
+        .employee-row, .job-config { display: flex; gap: 15px; align-items: center; margin-bottom: 15px; padding: 15px; background: white; border-radius: 10px; border: 1px solid var(--border-color); }
+        .form-group { flex: 1; }
+        .remove-btn { background: var(--danger-color); color: white; border: none; padding: 12px 15px; border-radius: 8px; cursor: pointer; transition: background 0.3s ease; }
+        .remove-btn:hover { background: #e05252; }
+        .add-btn { background: var(--accent-color); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; transition: background 0.3s ease; margin-top: 10px; }
+        .add-btn:hover { background: #40c057; }
+        .actions { text-align: center; margin-top: 40px; }
+        .generate-btn { background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); color: white; border: none; padding: 20px 40px; border-radius: 15px; font-size: 18px; font-weight: bold; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3); margin: 20px 10px; }
+        .generate-btn:hover { transform: translateY(-2px); box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4); }
+        
+        #memo-section { position: fixed; bottom: 20px; right: 20px; width: 300px; z-index: 1000; }
+        #memo-container { background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); overflow: hidden; transition: all 0.3s ease; }
+        #memo-header { background: var(--dark-gray); color: white; padding: 10px 15px; font-weight: bold; cursor: pointer; }
+        #memo-content { padding: 15px; border-top: 1px solid var(--border-color); }
+        #memo-textarea { width: 100%; height: 150px; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; font-size: 14px; resize: vertical; }
+        
+        .back-to-mode-selection { background: none; border: 2px solid var(--primary-color); color: var(--primary-color); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: all 0.3s ease; margin-bottom: 20px; }
+        .back-to-mode-selection:hover { background: var(--primary-color); color: white; }
+        
+        #shift-table-container { overflow-x: auto; }
+        .shift-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .shift-table th, .shift-table td { padding: 12px; text-align: center; border: 1px solid var(--border-color); white-space: nowrap; }
+        .shift-table th { background: var(--primary-color); color: white; font-weight: bold; }
+        .holiday { background-color: #ffebee !important; color: #c62828; }
+        .vacation { background-color: #fff3e0 !important; color: #ef6c00; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header"><h1>インテリジェント・シフト・プランナー</h1></div>
+        <div id="mode-selection-screen">
+            <h2>ようこそ！</h2><p>シフト表の作成方法を選択してください。</p>
+            <div class="mode-buttons">
+                <div class="mode-btn" data-mode="a"><h3>aモード</h3><p class="subtext">初めての人におすすめ！</p></div>
+                <div class="mode-btn" data-mode="b"><h3>bモード</h3><p class="subtext">コピー＆ペーストで時短！</p></div>
+            </div>
+        </div>
+        <div id="app-container" class="hidden">
+            <div class="main-content">
+                <button class="back-to-mode-selection">← モード選択に戻る</button>
+                <div id="a-mode" class="hidden">
+                    <div class="section"><div class="section-title"><h2>🔧 業務設定</h2></div><div id="a-job-list"><div class="job-config"><div class="form-group"><label>業務名</label><input type="text" placeholder="例: 皿洗い" class="job-name"></div><div class="form-group"><label>必要人数/日</label><input type="number" min="1" value="1" class="job-people"></div><button class="remove-btn">削除</button></div></div><button class="add-btn" data-type="job">➕ 業務を追加</button></div>
+                    <div class="section"><div class="section-title"><h2>👥 従業員・休暇希望設定</h2></div><div id="a-employee-list"><div class="employee-row"><div class="form-group"><label>氏名</label><input type="text" placeholder="例: 池田" class="employee-name"></div><div class="form-group" style="flex: 2;"><label>休暇希望日 (MM-DD)</label><input type="text" placeholder="例: 01-02, 01-15" class="vacation-dates"></div><button class="remove-btn">削除</button></div></div><button class="add-btn" data-type="employee">➕ 従業員を追加</button></div>
+                </div>
+                <div id="b-mode" class="hidden">
+                    <div class="section"><div class="section-title"><h2>🔧 業務設定 (一括入力)</h2></div><label>業務名をカンマ(,)または改行で区切って貼り付けてください。</label><textarea id="b-job-list-input" class="bulk-input-area" placeholder="皿洗い, 掃除, レジ..."></textarea></div>
+                    <div class="section"><div class="section-title"><h2>👥 従業員設定 (一括入力)</h2></div><label>氏名をカンマ(,)または改行で区切って貼り付けてください。</label><textarea id="b-employee-list-input" class="bulk-input-area" placeholder="池田, 鈴木, 清水..."></textarea><button id="b-parse-employees" class="parse-btn">氏名を反映して休暇入力欄を表示</button></div>
+                    <div class="section hidden" id="b-vacation-section"><div class="section-title"><h2>🌴 休暇希望設定</h2></div><div id="b-employee-list"></div></div>
+                </div>
+                <div id="common-settings">
+                    <div class="section"><div class="section-title"><h2>⏰ 間隔設定</h2></div><div class="form-group"><label>同じ業務を行う最小間隔（日数）</label><input type="number" id="interval" min="0" value="0"></div></div>
+                    <div class="section"><div class="section-title"><h2>🏢 休業日設定</h2></div><div class="form-group"><label>会社休業日（MM-DD形式、カンマ区切り）</label><input type="text" id="holidays" placeholder="例: 01-01, 01-02, 01-03, 12-31"></div></div>
+                    <div class="section"><div class="section-title"><h2>📅 シフト期間設定</h2></div><div class="employee-row"><div class="form-group"><label>開始日</label><input type="date" id="start-date"></div><div class="form-group"><label>終了日</label><input type="date" id="end-date"></div></div></div>
+                </div>
+                <div class="actions"><button class="generate-btn" id="generate-btn">🚀 シフト表を生成</button></div>
+                <div id="shift-result" class="hidden"><div class="section"><div class="section-title"><h2>📋 生成されたシフト表</h2></div><div id="shift-table-container"></div></div></div>
+            </div>
+        </div>
+    </div>
+    <div id="memo-section">
+        <div id="memo-container"><div id="memo-header">📝 個人用メモ帳</div><div id="memo-content" class="hidden"><textarea id="memo-textarea" placeholder="この内容はブラウザに保存され、次回も表示されます。"></textarea></div></div>
+    </div>
+    
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- グローバル変数定義 ---
+    let currentMode = ''; // 'a' or 'b'
+    let shiftData = {};
+    let dates = [];
+    let employees = [];
+
+    // --- DOM要素取得 ---
+    const modeSelectionScreen = document.getElementById('mode-selection-screen');
+    const appContainer = document.getElementById('app-container');
+    const aModeContainer = document.getElementById('a-mode');
+    const bModeContainer = document.getElementById('b-mode');
+    const memoTextarea = document.getElementById('memo-textarea');
+    const memoHeader = document.getElementById('memo-header');
+    const memoContent = document.getElementById('memo-content');
+    const tableContainer = document.getElementById('shift-table-container');
+
+    // --- イベントリスナー設定 ---
+
+    // モード選択ボタン
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentMode = btn.dataset.mode;
+            modeSelectionScreen.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            if (currentMode === 'a') {
+                aModeContainer.classList.remove('hidden');
+                bModeContainer.classList.add('hidden');
+            } else {
+                bModeContainer.classList.remove('hidden');
+                aModeContainer.classList.add('hidden');
+            }
+        });
+    });
+
+    // モード選択に戻るボタン
+    document.querySelector('.back-to-mode-selection').addEventListener('click', () => {
+        appContainer.classList.add('hidden');
+        aModeContainer.classList.add('hidden');
+        bModeContainer.classList.add('hidden');
+        modeSelectionScreen.classList.remove('hidden');
+        document.getElementById('shift-result').classList.add('hidden');
+    });
+
+    // メモ帳機能
+    memoTextarea.value = localStorage.getItem('userMemo') || '';
+    memoTextarea.addEventListener('input', () => localStorage.setItem('userMemo', memoTextarea.value));
+    memoHeader.addEventListener('click', () => memoContent.classList.toggle('hidden'));
+
+    // Bモード: 氏名反映ボタン
+    document.getElementById('b-parse-employees').addEventListener('click', () => {
+        const input = document.getElementById('b-employee-list-input').value.trim();
+        const names = input.split(/[\n,]/).map(name => name.trim()).filter(name => name);
+        const listContainer = document.getElementById('b-employee-list');
+        listContainer.innerHTML = '';
+        names.forEach(name => {
+            const employeeRow = document.createElement('div');
+            employeeRow.className = 'employee-row';
+            employeeRow.innerHTML = `<div class="form-group"><label>氏名</label><input type="text" class="employee-name" value="${name}" readonly></div><div class="form-group" style="flex: 2;"><label>休暇希望日 (MM-DD)</label><input type="text" class="vacation-dates" placeholder="例: 01-02, 01-15"></div>`;
+            listContainer.appendChild(employeeRow);
+        });
+        document.getElementById('b-vacation-section').classList.toggle('hidden', names.length === 0);
+    });
+
+    // Aモード: 追加・削除ボタン（イベント委任）
+    document.body.addEventListener('click', (e) => {
+        if (e.target.matches('.add-btn')) {
+            const type = e.target.dataset.type;
+            if (type === 'job') addJobRow(document.getElementById('a-job-list'));
+            else if (type === 'employee') addEmployeeRow(document.getElementById('a-employee-list'));
+        }
+        if (e.target.matches('.remove-btn')) {
+            e.target.parentElement.remove();
+        }
+    });
+
+    function addJobRow(list) {
+        const row = document.createElement('div');
+        row.className = 'job-config';
+        row.innerHTML = `<div class="form-group"><label>業務名</label><input type="text" placeholder="例: 皿洗い" class="job-name"></div><div class="form-group"><label>必要人数/日</label><input type="number" min="1" value="1" class="job-people"></div><button class="remove-btn">削除</button>`;
+        list.appendChild(row);
+    }
+
+    function addEmployeeRow(list) {
+        const row = document.createElement('div');
+        row.className = 'employee-row';
+        row.innerHTML = `<div class="form-group"><label>氏名</label><input type="text" placeholder="例: 池田" class="employee-name"></div><div class="form-group" style="flex: 2;"><label>休暇希望日 (MM-DD)</label><input type="text" placeholder="例: 01-02, 01-15" class="vacation-dates"></div><button class="remove-btn">削除</button>`;
+        list.appendChild(row);
+    }
+    
+    // シフト生成ボタン
+    document.getElementById('generate-btn').addEventListener('click', () => {
+        const jobs = collectJobData();
+        employees = collectEmployeeData();
+        const startDate = document.getElementById('start-date').value;
+        const endDate = document.getElementById('end-date').value;
+        dates = generateDateRange(startDate, endDate);
+        const interval = parseInt(document.getElementById('interval').value) || 0;
+        const holidaysStr = document.getElementById('holidays').value.trim();
+        const holidays = holidaysStr ? holidaysStr.split(',').map(d => d.trim()).filter(d => d) : [];
+        
+        if (!validateInput(jobs, employees, startDate, endDate)) return;
+        
+        shiftData = generateShiftSchedule(jobs, employees, startDate, endDate, interval, holidays);
+        displayShiftTable();
+        document.getElementById('shift-result').classList.remove('hidden');
+    });
+
+    // --- データ収集 ---
+    function collectJobData() {
+        const jobs = [];
+        if (currentMode === 'a') {
+            document.querySelectorAll('#a-job-list .job-config').forEach(config => {
+                const name = config.querySelector('.job-name').value.trim();
+                const people = parseInt(config.querySelector('.job-people').value) || 1;
+                if (name) jobs.push({ name, people });
+            });
+        } else {
+            const input = document.getElementById('b-job-list-input').value.trim();
+            input.split(/[\n,]/).map(name => name.trim()).filter(name => name).forEach(name => jobs.push({ name, people: 1 }));
+        }
+        return jobs;
+    }
+    function collectEmployeeData() {
+        const employeesData = [];
+        const selector = currentMode === 'a' ? '#a-employee-list .employee-row' : '#b-employee-list .employee-row';
+        document.querySelectorAll(selector).forEach(row => {
+            const name = row.querySelector('.employee-name').value.trim();
+            const vacationDatesStr = row.querySelector('.vacation-dates').value.trim();
+            if (name) {
+                const vacationDates = vacationDatesStr ? vacationDatesStr.split(',').map(d => d.trim()).filter(d => d) : [];
+                employeesData.push({ name, vacationDates });
+            }
+        });
+        return employeesData;
+    }
+
+    // --- バリデーション ---
+    function validateInput(jobs, employeesData, startDate, endDate) {
+        if (jobs.length === 0) { alert('業務を少なくとも1つ設定してください'); return false; }
+        if (employeesData.length === 0) { alert('従業員を少なくとも1人登録してください'); return false; }
+        const totalRequiredPeople = jobs.reduce((sum, job) => sum + job.people, 0);
+        if (employeesData.length < totalRequiredPeople) { alert(`従業員数(${employeesData.length}人)が1日の合計必要人数(${totalRequiredPeople}人)より少ないため、シフトを組めません。`); return false; }
+        if (!startDate || !endDate) { alert('シフト期間を設定してください'); return false; }
+        if (new Date(startDate) > new Date(endDate)) { alert('終了日は開始日より後の日付を設定してください'); return false; }
+        return true;
+    }
+
+    // --- シフト生成エンジン ---
+    function generateShiftSchedule(jobs, employeesData, startDate, endDate, interval, holidays) {
+        const schedule = {};
+        const employeeLastJob = {};
+        employeesData.forEach(emp => { employeeLastJob[emp.name] = {}; });
+        const dateRange = generateDateRange(startDate, endDate);
+        dateRange.forEach(date => {
+            schedule[date] = {};
+            const dateStrMMDD = formatDateForCheck(date);
+            if (holidays.includes(dateStrMMDD)) {
+                employeesData.forEach(emp => { schedule[date][emp.name] = '休業日'; });
+                return;
+            }
+            let availableEmployeesForDay = employeesData.filter(emp => !emp.vacationDates.map(vd => formatVacationDate(vd, date)).includes(date));
+            jobs.forEach(job => {
+                let assignedCount = 0;
+                let shuffledEmployees = availableEmployeesForDay.filter(emp => !schedule[date][emp.name]).sort(() => Math.random() - 0.5);
+                for (const emp of shuffledEmployees) {
+                    if (assignedCount >= job.people) break;
+                    const lastDate = employeeLastJob[emp.name][job.name];
+                    if (lastDate && (new Date(date) - new Date(lastDate)) / 86400000 <= interval) continue;
+                    if (!schedule[date][emp.name]) schedule[date][emp.name] = [];
+                    schedule[date][emp.name].push(job.name);
+                    employeeLastJob[emp.name][job.name] = date;
+                    assignedCount++;
+                }
+            });
+            employeesData.forEach(emp => {
+                if (!schedule[date][emp.name]) {
+                    schedule[date][emp.name] = emp.vacationDates.map(vd => formatVacationDate(vd, date)).includes(date) ? '休暇' : '休';
+                }
+            });
+        });
+        return schedule;
+    }
+
+    // --- テーブル表示と編集 ---
+    function displayShiftTable() {
+        let html = '<table class="shift-table"><thead><tr><th>氏名</th>';
+        dates.forEach(date => { html += `<th>${formatDateForHeader(date)}</th>`; });
+        html += '</tr></thead><tbody>';
+        employees.forEach(emp => {
+            html += `<tr><td><strong>${emp.name}</strong></td>`;
+            dates.forEach(date => {
+                const status = shiftData[date][emp.name];
+                const cellContent = Array.isArray(status) ? status.join(', ') : status;
+                html += `<td contenteditable="true">${cellContent}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        tableContainer.innerHTML = html;
+        updateAllCellStyles();
+    }
+    function updateCellClass(cell) {
+        const text = cell.textContent.trim();
+        cell.classList.remove('holiday', 'vacation');
+        if (text === '休業日') cell.classList.add('holiday');
+        else if (text === '休暇') cell.classList.add('vacation');
+    }
+    function updateAllCellStyles() {
+        tableContainer.querySelectorAll('.shift-table td[contenteditable="true"]').forEach(cell => updateCellClass(cell));
+    }
+    tableContainer.addEventListener('blur', (e) => {
+        const targetCell = e.target;
+        if (targetCell.tagName === 'TD' && targetCell.hasAttribute('contenteditable')) {
+            const rowIndex = targetCell.parentElement.rowIndex - 1;
+            const colIndex = targetCell.cellIndex - 1;
+            if (employees[rowIndex] && dates[colIndex]) {
+                shiftData[dates[colIndex]][employees[rowIndex].name] = targetCell.textContent.trim();
+                updateCellClass(targetCell);
+            }
+        }
+    }, true);
+
+    // --- ユーティリティ関数 ---
+    function generateDateRange(startDate, endDate) {
+        const datesArr = [];
+        if (!startDate || !endDate) return [];
+        let current = new Date(startDate);
+        const end = new Date(endDate);
+        current.setUTCHours(0, 0, 0, 0); end.setUTCHours(0, 0, 0, 0);
+        while (current <= end) {
+            datesArr.push(current.toISOString().split('T')[0]);
+            current.setDate(current.getDate() + 1);
+        }
+        return datesArr;
+    }
+    function formatDateForHeader(date) {
+        const d = new Date(date);
+        const month = d.getUTCMonth() + 1;
+        const day = d.getUTCDate();
+        return `${month}/${day}(${["日", "月", "火", "水", "木", "金", "土"][d.getUTCDay()]})`;
+    }
+    function formatDateForCheck(date) {
+        const d = new Date(date);
+        return `${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    }
+    function formatVacationDate(vacationDate, currentDate) {
+        return `${new Date(currentDate).getUTCFullYear()}-${vacationDate}`;
+    }
+});
+</script>
+</body>
+</html>
